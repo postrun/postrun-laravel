@@ -1,0 +1,42 @@
+{
+    "name": "postrun/postrun-laravel",
+    "description": "Laravel Mail Driver for PostRun email delivery",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["postrun", "email", "laravel", "mail", "driver"],
+    "authors": [
+        {
+            "name": "PostRun",
+            "email": "support@postrun.io"
+        }
+    ],
+    "require": {
+        "php": "^8.1",
+        "illuminate/mail": "^10.0|^11.0|^12.0",
+        "illuminate/support": "^10.0|^11.0|^12.0",
+        "postrun/postrun-php": "^1.0|dev-main"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0",
+        "orchestra/testbench": "^8.0|^9.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "PostRun\\Laravel\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PostRun\\Laravel\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "PostRun\\Laravel\\PostRunServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
