@@ -78,7 +78,65 @@ Mail::raw('Hello!', function ($message) {
 
 ## Adding Tags and Metadata
 
-You can add PostRun-specific tags and metadata using custom headers:
+### Using Laravel's Native Tag Support (Recommended)
+
+Laravel 9+ has built-in support for tags and metadata on Mailables. Simply define `tags()` and/or `metadata()` methods on your Mailable class:
+
+```php
+namespace App\Mail;
+
+use Illuminate\Mail\Mailable;
+
+class WelcomeEmail extends Mailable
+{
+    public function __construct(
+        protected User $user
+    ) {}
+
+    public function build()
+    {
+        return $this->subject('Welcome!')
+            ->view('emails.welcome');
+    }
+
+    /**
+     * Define tags for this email.
+     */
+    public function tags(): array
+    {
+        return ['welcome', 'onboarding'];
+    }
+
+    /**
+     * Define metadata for this email.
+     */
+    public function metadata(): array
+    {
+        return [
+            'user_id' => $this->user->id,
+            'campaign' => 'welcome-series',
+        ];
+    }
+}
+```
+
+You can also use the fluent `tag()` and `metadata()` methods:
+
+```php
+public function build()
+{
+    return $this->subject('Welcome!')
+        ->view('emails.welcome')
+        ->tag('welcome')
+        ->tag('onboarding')
+        ->metadata('user_id', $this->user->id)
+        ->metadata('campaign', 'welcome-series');
+}
+```
+
+### Using Custom Headers (Alternative)
+
+You can also add tags and metadata using custom headers directly:
 
 ```php
 use Illuminate\Support\Facades\Mail;
@@ -98,30 +156,19 @@ Mail::raw('Hello!', function ($message) {
 });
 ```
 
-### Using with Mailables
+Or with `withSymfonyMessage` in a Mailable:
 
 ```php
-namespace App\Mail;
-
-use Illuminate\Mail\Mailable;
-
-class WelcomeEmail extends Mailable
+public function build()
 {
-    public function __construct(
-        protected User $user
-    ) {}
-
-    public function build()
-    {
-        return $this->subject('Welcome!')
-            ->view('emails.welcome')
-            ->withSymfonyMessage(function ($message) {
-                $message->getHeaders()->addTextHeader('X-PostRun-Tags', 'welcome');
-                $message->getHeaders()->addTextHeader('X-PostRun-Meta', json_encode([
-                    'user_id' => $this->user->id,
-                ]));
-            });
-    }
+    return $this->subject('Welcome!')
+        ->view('emails.welcome')
+        ->withSymfonyMessage(function ($message) {
+            $message->getHeaders()->addTextHeader('X-PostRun-Tags', 'welcome');
+            $message->getHeaders()->addTextHeader('X-PostRun-Meta', json_encode([
+                'user_id' => $this->user->id,
+            ]));
+        });
 }
 ```
 
