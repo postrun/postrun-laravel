@@ -123,7 +123,7 @@ class WelcomeEmail extends Mailable
 }
 ```
 
-> **Note:** The trait uses `postRunTags()` and `postRunMetadata()` method names to avoid conflicts with Laravel's native methods.
+> **Note:** The trait automatically adds the headers when `send()` is called (including for queued emails). The method names use the `postRun` prefix to avoid conflicts with Laravel's native methods.
 
 ### Using Custom Headers (Alternative)
 

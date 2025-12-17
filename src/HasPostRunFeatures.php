@@ -6,7 +6,8 @@ namespace PostRun\Laravel;
  * Trait to enable postRunTags() and postRunMetadata() method support on Laravel Mailables.
  *
  * This trait adds custom X-PostRun-Tags and X-PostRun-Meta headers that the
- * PostRun transport will extract when sending.
+ * PostRun transport will extract when sending. The headers are automatically
+ * added when the email is sent - no additional setup required.
  *
  * Usage:
  *   class MyMailable extends Mailable
@@ -27,12 +28,28 @@ namespace PostRun\Laravel;
 trait HasPostRunFeatures
 {
     /**
-     * Build the message and add PostRun-specific headers.
+     * Send the message using the given mailer.
+     * Overrides parent to automatically add PostRun headers.
+     *
+     * @param  \Illuminate\Contracts\Mail\Factory|\Illuminate\Contracts\Mail\Mailer  $mailer
+     * @return \Illuminate\Mail\SentMessage|null
+     */
+    public function send($mailer)
+    {
+        $this->withSymfonyMessage(function ($message) {
+            $this->addPostRunHeaders($message);
+        });
+
+        return parent::send($mailer);
+    }
+
+    /**
+     * Add PostRun-specific headers to the Symfony message.
      *
      * @param  \Symfony\Component\Mime\Email  $message
-     * @return $this
+     * @return void
      */
-    protected function buildPostRunHeaders($message)
+    protected function addPostRunHeaders($message): void
     {
         $tags = [];
         $metadata = [];
@@ -62,20 +79,5 @@ trait HasPostRunFeatures
         if (! empty($metadata)) {
             $message->getHeaders()->addTextHeader('X-PostRun-Meta', json_encode($metadata));
         }
-
-        return $this;
-    }
-
-    /**
-     * Build the Symfony message.
-     * Overrides the parent to inject PostRun headers.
-     *
-     * @return \Symfony\Component\Mime\Email
-     */
-    protected function buildSymfonyMessage($message)
-    {
-        $this->buildPostRunHeaders($message);
-
-        return parent::buildSymfonyMessage($message);
     }
 }
