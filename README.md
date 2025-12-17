@@ -123,23 +123,7 @@ class WelcomeEmail extends Mailable
 }
 ```
 
-> **Note:** The trait uses `postRunTags()` and `postRunMetadata()` method names to avoid conflicts with Laravel's native `metadata()` fluent method and potential future `tags()` method. The trait also supports Laravel's `$tags` and `$metadata` properties set via the fluent `tag()` and `metadata()` methods.
-
-### Using Laravel's Fluent Methods (Alternative)
-
-You can also use Laravel's built-in fluent `tag()` and `metadata()` methods directly in your `build()` method (no trait needed):
-
-```php
-public function build()
-{
-    return $this->subject('Welcome!')
-        ->view('emails.welcome')
-        ->tag('welcome')
-        ->tag('onboarding')
-        ->metadata('user_id', $this->user->id)
-        ->metadata('campaign', 'welcome-series');
-}
-```
+> **Note:** The trait uses `postRunTags()` and `postRunMetadata()` method names to avoid conflicts with Laravel's native methods.
 
 ### Using Custom Headers (Alternative)
 

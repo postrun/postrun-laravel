@@ -2,16 +2,11 @@
 
 namespace PostRun\Laravel;
 
-use Symfony\Component\Mime\Header\MetadataHeader;
-use Symfony\Component\Mime\Header\TagHeader;
-
 /**
  * Trait to enable postRunTags() and postRunMetadata() method support on Laravel Mailables.
  *
- * Laravel's base Mailable only reads from the $tags and $metadata properties.
- * This trait overrides buildTags() and buildMetadata() to also check for
- * postRunTags() and postRunMetadata() methods, allowing a cleaner API without
- * conflicting with Laravel's native methods.
+ * This trait adds custom X-PostRun-Tags and X-PostRun-Meta headers that the
+ * PostRun transport will extract when sending.
  *
  * Usage:
  *   class MyMailable extends Mailable
@@ -32,16 +27,17 @@ use Symfony\Component\Mime\Header\TagHeader;
 trait HasPostRunFeatures
 {
     /**
-     * Override buildTags to support a postRunTags() method.
+     * Build the message and add PostRun-specific headers.
      *
      * @param  \Symfony\Component\Mime\Email  $message
      * @return $this
      */
-    protected function buildTags($message)
+    protected function buildPostRunHeaders($message)
     {
         $tags = [];
+        $metadata = [];
 
-        // First, get tags from the postRunTags() method if it exists
+        // Get tags from the postRunTags() method if it exists
         if (method_exists($this, 'postRunTags')) {
             $methodTags = $this->postRunTags();
             if (is_array($methodTags)) {
@@ -49,30 +45,7 @@ trait HasPostRunFeatures
             }
         }
 
-        // Also include tags from the $tags property (set via tag() fluent method)
-        if (property_exists($this, 'tags') && is_array($this->tags)) {
-            $tags = array_merge($tags, $this->tags);
-        }
-
-        // Add unique tags as headers
-        foreach (array_unique($tags) as $tag) {
-            $message->getHeaders()->add(new TagHeader($tag));
-        }
-
-        return $this;
-    }
-
-    /**
-     * Override buildMetadata to support a postRunMetadata() method.
-     *
-     * @param  \Symfony\Component\Mime\Email  $message
-     * @return $this
-     */
-    protected function buildMetadata($message)
-    {
-        $metadata = [];
-
-        // First, get metadata from the postRunMetadata() method if it exists
+        // Get metadata from the postRunMetadata() method if it exists
         if (method_exists($this, 'postRunMetadata')) {
             $methodMetadata = $this->postRunMetadata();
             if (is_array($methodMetadata)) {
@@ -80,16 +53,29 @@ trait HasPostRunFeatures
             }
         }
 
-        // Also include metadata from the $metadata property
-        if (property_exists($this, 'metadata') && is_array($this->metadata)) {
-            $metadata = array_merge($metadata, $this->metadata);
+        // Add tags as X-PostRun-Tags header (comma-separated)
+        if (! empty($tags)) {
+            $message->getHeaders()->addTextHeader('X-PostRun-Tags', implode(',', array_unique($tags)));
         }
 
-        // Add metadata as headers
-        foreach ($metadata as $key => $value) {
-            $message->getHeaders()->add(new MetadataHeader($key, $value));
+        // Add metadata as X-PostRun-Meta header (JSON encoded)
+        if (! empty($metadata)) {
+            $message->getHeaders()->addTextHeader('X-PostRun-Meta', json_encode($metadata));
         }
 
         return $this;
+    }
+
+    /**
+     * Build the Symfony message.
+     * Overrides the parent to inject PostRun headers.
+     *
+     * @return \Symfony\Component\Mime\Email
+     */
+    protected function buildSymfonyMessage($message)
+    {
+        $this->buildPostRunHeaders($message);
+
+        return parent::buildSymfonyMessage($message);
     }
 }

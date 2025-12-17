@@ -8,8 +8,6 @@ use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
-use Symfony\Component\Mime\Header\MetadataHeader;
-use Symfony\Component\Mime\Header\TagHeader;
 use Symfony\Component\Mime\MessageConverter;
 use Symfony\Component\Mime\Part\DataPart;
 
@@ -134,61 +132,39 @@ class PostRunTransport extends AbstractTransport
 
     /**
      * Extract tags from the email headers.
-     * Supports both Symfony's native TagHeader (from Laravel's tag() method)
-     * and custom X-PostRun-Tags header for backwards compatibility.
      *
      * @return array<string>
      */
     protected function extractTags(Email $email): array
     {
-        $tags = [];
         $headers = $email->getHeaders();
 
-        // First, check for Symfony's native TagHeader (Laravel 9+ tag support)
-        foreach ($headers->all() as $header) {
-            if ($header instanceof TagHeader) {
-                $tags[] = $header->getValue();
-            }
-        }
-
-        // Fall back to custom X-PostRun-Tags header if no native tags found
-        if (empty($tags) && $headers->has('X-PostRun-Tags')) {
+        if ($headers->has('X-PostRun-Tags')) {
             $tagsHeader = $headers->get('X-PostRun-Tags');
             if ($tagsHeader) {
-                $tags = explode(',', $tagsHeader->getBodyAsString());
+                return array_map('trim', explode(',', $tagsHeader->getBodyAsString()));
             }
         }
 
-        return $tags;
+        return [];
     }
 
     /**
      * Extract metadata from the email headers.
-     * Supports both Symfony's native MetadataHeader (from Laravel's metadata() method)
-     * and custom X-PostRun-Meta header for backwards compatibility.
      *
      * @return array<string, mixed>
      */
     protected function extractMetadata(Email $email): array
     {
-        $meta = [];
         $headers = $email->getHeaders();
 
-        // First, check for Symfony's native MetadataHeader (Laravel 9+ metadata support)
-        foreach ($headers->all() as $header) {
-            if ($header instanceof MetadataHeader) {
-                $meta[$header->getName()] = $header->getValue();
-            }
-        }
-
-        // Fall back to custom X-PostRun-Meta header if no native metadata found
-        if (empty($meta) && $headers->has('X-PostRun-Meta')) {
+        if ($headers->has('X-PostRun-Meta')) {
             $metaHeader = $headers->get('X-PostRun-Meta');
             if ($metaHeader) {
-                $meta = json_decode($metaHeader->getBodyAsString(), true) ?? [];
+                return json_decode($metaHeader->getBodyAsString(), true) ?? [];
             }
         }
 
-        return $meta;
+        return [];
     }
 }
