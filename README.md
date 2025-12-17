@@ -78,17 +78,20 @@ Mail::raw('Hello!', function ($message) {
 
 ## Adding Tags and Metadata
 
-### Using Laravel's Native Tag Support (Recommended)
+### Using the HasPostRunFeatures Trait (Recommended)
 
-Laravel 9+ has built-in support for tags and metadata on Mailables. Simply define `tags()` and/or `metadata()` methods on your Mailable class:
+Use the `HasPostRunFeatures` trait to define `postRunTags()` and `postRunMetadata()` methods on your Mailables:
 
 ```php
 namespace App\Mail;
 
 use Illuminate\Mail\Mailable;
+use PostRun\Laravel\HasPostRunFeatures;
 
 class WelcomeEmail extends Mailable
 {
+    use HasPostRunFeatures;
+
     public function __construct(
         protected User $user
     ) {}
@@ -102,7 +105,7 @@ class WelcomeEmail extends Mailable
     /**
      * Define tags for this email.
      */
-    public function tags(): array
+    public function postRunTags(): array
     {
         return ['welcome', 'onboarding'];
     }
@@ -110,7 +113,7 @@ class WelcomeEmail extends Mailable
     /**
      * Define metadata for this email.
      */
-    public function metadata(): array
+    public function postRunMetadata(): array
     {
         return [
             'user_id' => $this->user->id,
@@ -120,7 +123,11 @@ class WelcomeEmail extends Mailable
 }
 ```
 
-You can also use the fluent `tag()` and `metadata()` methods:
+> **Note:** The trait uses `postRunTags()` and `postRunMetadata()` method names to avoid conflicts with Laravel's native `metadata()` fluent method and potential future `tags()` method. The trait also supports Laravel's `$tags` and `$metadata` properties set via the fluent `tag()` and `metadata()` methods.
+
+### Using Laravel's Fluent Methods (Alternative)
+
+You can also use Laravel's built-in fluent `tag()` and `metadata()` methods directly in your `build()` method (no trait needed):
 
 ```php
 public function build()
