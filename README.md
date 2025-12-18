@@ -78,17 +78,20 @@ Mail::raw('Hello!', function ($message) {
 
 ## Adding Tags and Metadata
 
-### Using the HasPostRunFeatures Trait (Recommended)
+Tags and metadata help you track and categorize emails in PostRun. Tags are useful for filtering, while metadata can store contextual information like user IDs for webhook handling.
 
-Use the `HasPostRunFeatures` trait to define `postRunTags()` and `postRunMetadata()` methods on your Mailables:
+### Basic Setup
+
+Add the `HasPostRunFeatures` trait and `PostRunMailable` interface to your Mailable:
 
 ```php
 namespace App\Mail;
 
 use Illuminate\Mail\Mailable;
+use PostRun\Laravel\Contracts\PostRunMailable;
 use PostRun\Laravel\HasPostRunFeatures;
 
-class WelcomeEmail extends Mailable
+class WelcomeEmail extends Mailable implements PostRunMailable
 {
     use HasPostRunFeatures;
 
@@ -103,7 +106,7 @@ class WelcomeEmail extends Mailable
     }
 
     /**
-     * Define tags for this email.
+     * Define tags for this email (optional).
      */
     public function postRunTags(): array
     {
@@ -111,19 +114,87 @@ class WelcomeEmail extends Mailable
     }
 
     /**
-     * Define metadata for this email.
+     * Define metadata for this email (optional).
      */
     public function postRunMetadata(): array
     {
         return [
-            'user_id' => $this->user->id,
             'campaign' => 'welcome-series',
         ];
     }
 }
 ```
 
-> **Note:** The trait automatically adds the headers when `send()` is called (including for queued emails). The method names use the `postRun` prefix to avoid conflicts with Laravel's native methods.
+### Setting Tags and Metadata at Send Time
+
+You can set (or add to) tags and metadata when sending the email. This is useful for adding context that's only available at the send point, like user IDs:
+
+```php
+use PostRun\Laravel\Contracts\PostRunMailable;
+
+$mailable = new WelcomeEmail($user);
+
+if ($mailable instanceof PostRunMailable) {
+    $mailable->setPostRunMetadata([
+        'user_id' => $user->id,
+        'domain' => 'myapp.com',
+    ]);
+}
+
+Mail::mailer('postrun')->to($user->email)->queue($mailable);
+```
+
+Runtime values are merged with any values defined in the Mailable's methods. This works with both `send()` and `queue()`.
+
+### Multi-Domain Setup with Base Traits
+
+For applications sending from multiple domains, create domain-specific traits:
+
+```php
+namespace App\Mail\Concerns;
+
+use PostRun\Laravel\HasPostRunFeatures;
+
+trait HasMyAppPostRunFeatures
+{
+    use HasPostRunFeatures;
+
+    protected function basePostRunTags(): array
+    {
+        return ['myapp'];
+    }
+
+    protected function basePostRunMetadata(): array
+    {
+        return [
+            'domain' => 'myapp.com',
+            'app' => 'myapp',
+        ];
+    }
+}
+```
+
+Then use the domain trait in your Mailables:
+
+```php
+use App\Mail\Concerns\HasMyAppPostRunFeatures;
+use PostRun\Laravel\Contracts\PostRunMailable;
+
+class WelcomeEmail extends Mailable implements PostRunMailable
+{
+    use HasMyAppPostRunFeatures;
+
+    public function postRunTags(): array
+    {
+        return ['welcome']; // Combined with base: ['myapp', 'welcome']
+    }
+}
+```
+
+**Priority order (later values override earlier):**
+1. `basePostRunTags()` / `basePostRunMetadata()` — from domain traits
+2. `postRunTags()` / `postRunMetadata()` — from Mailable methods
+3. `setPostRunTags()` / `setPostRunMetadata()` — runtime, at send point
 
 ### Using Custom Headers (Alternative)
 
