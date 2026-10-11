@@ -191,10 +191,10 @@ class WelcomeEmail extends Mailable implements PostRunMailable
 }
 ```
 
-**Priority order (later values override earlier):**
-1. `basePostRunTags()` / `basePostRunMetadata()` — from domain traits
-2. `postRunTags()` / `postRunMetadata()` — from Mailable methods
-3. `setPostRunTags()` / `setPostRunMetadata()` — runtime, at send point
+**Precedence (later values override earlier):**
+1. `basePostRunTags()` / `basePostRunMetadata()` / `basePostRunPriority()` — from domain traits
+2. `postRunTags()` / `postRunMetadata()` / `postRunPriority()` — from Mailable methods
+3. `setPostRunTags()` / `setPostRunMetadata()` / `setPostRunPriority()` — runtime, at send point
 
 ### Using Custom Headers (Alternative)
 
@@ -230,6 +230,59 @@ public function build()
             $message->getHeaders()->addTextHeader('X-PostRun-Meta', json_encode([
                 'user_id' => $this->user->id,
             ]));
+        });
+}
+```
+
+## Setting a Priority
+
+When your sending provider is at its rate limit, PostRun sends the highest priority waiting message first. Use `High` for mail that must arrive quickly (password resets, sign-ups, receipts) and `Low` for mail that can wait (digests, newsletters). Mail without a priority uses the domain's default priority, set in PostRun.
+
+Define the priority on the Mailable:
+
+```php
+use Illuminate\Mail\Mailable;
+use PostRun\Laravel\Contracts\PostRunMailable;
+use PostRun\Laravel\HasPostRunFeatures;
+use PostRun\Priority;
+
+class PasswordReset extends Mailable implements PostRunMailable
+{
+    use HasPostRunFeatures;
+
+    public function postRunPriority(): Priority
+    {
+        return Priority::High;
+    }
+}
+```
+
+Or set it when sending, which overrides the Mailable's own priority:
+
+```php
+Mail::mailer('postrun')
+    ->to($user)
+    ->queue((new WeeklyDigest($user))->setPostRunPriority(Priority::Low));
+```
+
+`setPostRunPriority()` also accepts `'high'`, `'normal'` or `'low'`. An unknown value throws an `InvalidArgumentException`, so a typo never silently falls back to the default. The priority is kept when the Mailable is queued.
+
+This is PostRun's sending order, not the `X-Priority` importance flag that Laravel's own `priority()` method sets for the recipient's mail client. The two are independent.
+
+### Priority Without the Trait
+
+For notifications or `Mail::raw()`, set the `X-PostRun-Priority` header yourself:
+
+```php
+use PostRun\Laravel\Transport\PostRunTransport;
+
+public function toMail(object $notifiable): MailMessage
+{
+    return (new MailMessage)
+        ->subject('Reset your password')
+        ->action('Reset password', $url)
+        ->withSymfonyMessage(function ($message) {
+            $message->getHeaders()->addTextHeader(PostRunTransport::PRIORITY_HEADER, 'high');
         });
 }
 ```

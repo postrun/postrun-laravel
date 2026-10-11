@@ -3,17 +3,20 @@
 namespace PostRun\Laravel;
 
 use PostRun\Laravel\Contracts\PostRunMailable;
+use PostRun\Laravel\Transport\PostRunTransport;
+use PostRun\Priority;
 
 /**
- * Trait to enable PostRun tags and metadata support on Laravel Mailables.
+ * Trait to enable PostRun tags, metadata and priority on Laravel Mailables.
  *
- * This trait adds custom X-PostRun-Tags and X-PostRun-Meta headers that the
- * PostRun transport will extract when sending. The headers are automatically
- * added when the email is sent.
+ * This trait adds custom X-PostRun-Tags, X-PostRun-Meta and X-PostRun-Priority
+ * headers that the PostRun transport will extract when sending. The headers
+ * are automatically added when the email is sent.
  *
  * Usage:
  *   use PostRun\Laravel\Contracts\PostRunMailable;
  *   use PostRun\Laravel\HasPostRunFeatures;
+ *   use PostRun\Priority;
  *
  *   class MyMailable extends Mailable implements PostRunMailable
  *   {
@@ -29,6 +32,12 @@ use PostRun\Laravel\Contracts\PostRunMailable;
  *       public function postRunMetadata(): array
  *       {
  *           return ['campaign' => 'onboarding'];
+ *       }
+ *
+ *       // Optional: define the sending priority for this specific mailable
+ *       public function postRunPriority(): Priority
+ *       {
+ *           return Priority::High;
  *       }
  *   }
  *
@@ -54,6 +63,11 @@ trait HasPostRunFeatures
     protected array $runtimePostRunMetadata = [];
 
     /**
+     * Runtime PostRun priority set via setPostRunPriority().
+     */
+    protected ?Priority $runtimePostRunPriority = null;
+
+    /**
      * Set PostRun tags at send time.
      * These are merged with any tags defined in postRunTags().
      *
@@ -77,6 +91,22 @@ trait HasPostRunFeatures
     public function setPostRunMetadata(array $metadata)
     {
         $this->runtimePostRunMetadata = $metadata;
+
+        return $this;
+    }
+
+    /**
+     * Set the PostRun sending priority at send time.
+     * Overrides any priority defined in postRunPriority().
+     *
+     * @param  \PostRun\Priority|string  $priority  A Priority case, or "high", "normal" or "low".
+     * @return $this
+     *
+     * @throws \InvalidArgumentException When the priority is not a known priority.
+     */
+    public function setPostRunPriority($priority)
+    {
+        $this->runtimePostRunPriority = Priority::fromValue($priority);
 
         return $this;
     }
@@ -117,6 +147,39 @@ trait HasPostRunFeatures
         if (! empty($metadata)) {
             $message->getHeaders()->addTextHeader('X-PostRun-Meta', json_encode($metadata));
         }
+
+        // Add the priority as X-PostRun-Priority header, replacing any earlier one
+        $priority = $this->collectPostRunPriority();
+        if ($priority !== null) {
+            $message->getHeaders()->remove(PostRunTransport::PRIORITY_HEADER);
+            $message->getHeaders()->addTextHeader(PostRunTransport::PRIORITY_HEADER, $priority->value);
+        }
+    }
+
+    /**
+     * Resolve the PostRun priority from all sources.
+     * Priority (later overrides earlier): base -> mailable method -> runtime.
+     * Without any, PostRun uses the domain's default priority.
+     *
+     * @throws \InvalidArgumentException When a source returns an unknown priority.
+     */
+    protected function collectPostRunPriority(): ?Priority
+    {
+        if ($this->runtimePostRunPriority !== null) {
+            return $this->runtimePostRunPriority;
+        }
+
+        foreach (['postRunPriority', 'basePostRunPriority'] as $method) {
+            if (method_exists($this, $method)) {
+                $priority = $this->{$method}();
+
+                if ($priority !== null) {
+                    return Priority::fromValue($priority);
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

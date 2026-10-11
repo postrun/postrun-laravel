@@ -4,6 +4,7 @@ namespace PostRun\Laravel\Transport;
 
 use PostRun\Exceptions\PostRunException;
 use PostRun\PostRunClient;
+use PostRun\Priority;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Symfony\Component\Mime\Address;
@@ -13,6 +14,21 @@ use Symfony\Component\Mime\Part\DataPart;
 
 class PostRunTransport extends AbstractTransport
 {
+    /**
+     * Header carrying comma-separated PostRun tags.
+     */
+    public const TAGS_HEADER = 'X-PostRun-Tags';
+
+    /**
+     * Header carrying JSON-encoded PostRun metadata.
+     */
+    public const METADATA_HEADER = 'X-PostRun-Meta';
+
+    /**
+     * Header carrying the PostRun sending priority: high, normal or low.
+     */
+    public const PRIORITY_HEADER = 'X-PostRun-Priority';
+
     protected PostRunClient $client;
 
     public function __construct(
@@ -110,6 +126,11 @@ class PostRunTransport extends AbstractTransport
             $payload['meta'] = $meta;
         }
 
+        $priority = $this->extractPriority($email);
+        if ($priority !== null) {
+            $payload['priority'] = $priority->value;
+        }
+
         return $payload;
     }
 
@@ -139,8 +160,8 @@ class PostRunTransport extends AbstractTransport
     {
         $headers = $email->getHeaders();
 
-        if ($headers->has('X-PostRun-Tags')) {
-            $tagsHeader = $headers->get('X-PostRun-Tags');
+        if ($headers->has(self::TAGS_HEADER)) {
+            $tagsHeader = $headers->get(self::TAGS_HEADER);
             if ($tagsHeader) {
                 return array_map('trim', explode(',', $tagsHeader->getBodyAsString()));
             }
@@ -158,13 +179,29 @@ class PostRunTransport extends AbstractTransport
     {
         $headers = $email->getHeaders();
 
-        if ($headers->has('X-PostRun-Meta')) {
-            $metaHeader = $headers->get('X-PostRun-Meta');
+        if ($headers->has(self::METADATA_HEADER)) {
+            $metaHeader = $headers->get(self::METADATA_HEADER);
             if ($metaHeader) {
                 return json_decode($metaHeader->getBodyAsString(), true) ?? [];
             }
         }
 
         return [];
+    }
+
+    /**
+     * Extract the sending priority from the email headers.
+     *
+     * @throws \InvalidArgumentException When the header holds an unknown priority.
+     */
+    protected function extractPriority(Email $email): ?Priority
+    {
+        $priorityHeader = $email->getHeaders()->get(self::PRIORITY_HEADER);
+
+        if ($priorityHeader === null || trim($priorityHeader->getBodyAsString()) === '') {
+            return null;
+        }
+
+        return Priority::fromValue($priorityHeader->getBodyAsString());
     }
 }
