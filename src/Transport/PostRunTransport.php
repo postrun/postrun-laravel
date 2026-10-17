@@ -29,6 +29,29 @@ class PostRunTransport extends AbstractTransport
      */
     public const PRIORITY_HEADER = 'X-PostRun-Priority';
 
+    /**
+     * Standard headers sent along to PostRun, which passes them on to the
+     * email provider. Custom X-* headers are sent along as well.
+     */
+    public const FORWARDED_HEADERS = [
+        'List-Unsubscribe',
+        'List-Unsubscribe-Post',
+        'List-Id',
+        'In-Reply-To',
+        'References',
+        'Precedence',
+        'Auto-Submitted',
+    ];
+
+    /**
+     * X-* header prefixes that PostRun reserves, so they are never sent along.
+     */
+    public const RESERVED_HEADER_PREFIXES = [
+        'x-postrun-',
+        'x-ses-',
+        'x-capsule-',
+    ];
+
     protected PostRunClient $client;
 
     public function __construct(
@@ -131,6 +154,11 @@ class PostRunTransport extends AbstractTransport
             $payload['priority'] = $priority->value;
         }
 
+        $headers = $this->extractCustomHeaders($email);
+        if (! empty($headers)) {
+            $payload['headers'] = $headers;
+        }
+
         return $payload;
     }
 
@@ -187,6 +215,49 @@ class PostRunTransport extends AbstractTransport
         }
 
         return [];
+    }
+
+    /**
+     * Extract the headers PostRun passes on to the email provider, such as
+     * List-Unsubscribe and the app's own X-* headers.
+     *
+     * @return array<string, string>
+     */
+    protected function extractCustomHeaders(Email $email): array
+    {
+        $headers = [];
+
+        foreach ($email->getHeaders()->all() as $header) {
+            if ($this->isForwardedHeader($header->getName())) {
+                $headers[$header->getName()] = $header->getBodyAsString();
+            }
+        }
+
+        return $headers;
+    }
+
+    /**
+     * Whether the header is sent along to PostRun.
+     */
+    protected function isForwardedHeader(string $name): bool
+    {
+        $lower = strtolower($name);
+
+        if (in_array($lower, array_map('strtolower', self::FORWARDED_HEADERS), true)) {
+            return true;
+        }
+
+        if (! str_starts_with($lower, 'x-')) {
+            return false;
+        }
+
+        foreach (self::RESERVED_HEADER_PREFIXES as $prefix) {
+            if (str_starts_with($lower, $prefix)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

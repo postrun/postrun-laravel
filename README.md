@@ -234,6 +234,28 @@ public function build()
 }
 ```
 
+## Sending Email Headers
+
+Headers such as `List-Unsubscribe` are sent along to PostRun, which passes them on to your email provider. Set them the usual Laravel way, for example in a Mailable's `headers()` method:
+
+```php
+use Illuminate\Mail\Mailables\Headers;
+
+public function headers(): Headers
+{
+    return new Headers(
+        text: [
+            'List-Unsubscribe' => '<'.$this->unsubscribeUrl.'>, <mailto:unsubscribe@example.com>',
+            'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
+        ],
+    );
+}
+```
+
+Gmail and Yahoo require both of these headers (one-click unsubscribe) on bulk mail. Your app must handle the `POST` to the unsubscribe URL.
+
+These headers are sent along: `List-Unsubscribe`, `List-Unsubscribe-Post`, `List-Id`, `In-Reply-To`, `References`, `Precedence`, `Auto-Submitted`, and your own `X-*` headers. Other headers are left out, as are the reserved `X-PostRun-*`, `X-SES-*` and `X-Capsule-*` headers. PostRun rejects header values that are not single-line printable ASCII.
+
 ## Setting a Priority
 
 When your sending provider is at its rate limit, PostRun sends the highest priority waiting message first. Use `High` for mail that must arrive quickly (password resets, sign-ups, receipts) and `Low` for mail that can wait (digests, newsletters). Mail without a priority uses the domain's default priority, set in PostRun.
